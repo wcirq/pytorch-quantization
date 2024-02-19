@@ -5,6 +5,7 @@
 # Author     ：wcirq
 # version    ：python 3
 # Description：静态量化
+# Link       ：https://zhuanlan.zhihu.com/p/299108528
 """
 import time
 import torch
@@ -39,15 +40,19 @@ class Model(torch.nn.Module):
 if __name__ == '__main__':
     model_fp32 = Model()
     model_fp32.eval()
+    # qnnpack是基于tensor的模式，这种相当于一种全局量化模式；另外fbgemm是基于通道的模式，相比qnnpack，fbgemm是以及基于通道的局部量化模式；需要说明的是这两种模式主要是针对权重而言的，激活函数的量化都是一样的。
     model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [[f'sequence.{i*2}', f'sequence.{i*2+1}'] for i in range(len(model_fp32.sequence)//2)])
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
-    input_fp32 = torch.randn(4, 3, 128, 128)
-    model_fp32_prepared(input_fp32)
+    # 喂数据，计算数据分布
+    for i in range(2):
+        datas = torch.randn(4, 3, 128, 128)
+        model_fp32_prepared(datas)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
 
+    input_fp32 = torch.randn(4, 3, 128, 128)
     # run the model, relevant calculations will happen in int8
     res_fp32 = model_fp32(input_fp32)
     res_int8 = model_int8(input_fp32)
